@@ -48,12 +48,39 @@ int main() {
     client_addr_to.sin_addr.s_addr = inet_addr(LOCAL_HOST);
     client_addr_to.sin_port = htons(CLIENT_PORT_TO);
 
+    // Configure the client address structure from which we receive packets
+    memset(&client_addr_from, 0, sizeof(client_addr_from));
+    client_addr_from.sin_family = AF_INET;
+    client_addr_from.sin_addr.s_addr = inet_addr(LOCAL_HOST);
+    client_addr_from.sin_port = htons(CLIENT_PORT);
+
     // Open the target file for writing (always write to output.txt)
     FILE *fp = fopen("output.txt", "wb");
 
     // TODO: Receive file from the client and save it as output.txt
+    size_t bytes_written;
+    size_t bytes_received;
 
-    
+    // Receiving packet from client
+    bytes_received = recvfrom(listen_sockfd, &buffer, sizeof(buffer), 0, (struct sockaddr *)&client_addr_from, addr_size);
+    if (bytes_received == -1) {
+        perror("Error retrieving packet")
+        close(listen_sockfd);
+        close(send_sockfd);
+        return 1;
+    }
+
+    // If inorder packet arrives
+    if (expected_seq_num = buffer.seqnum) {
+        // Write the buffer to the output file
+        bytes_written = fwrite(&(buffer.payload), 1, strlen(buffer.payload), fp);
+        // Error handling
+
+        // Send back an ACK
+        
+    } else { // else out of order packet arrived
+        /* TODO - Implement out of order packet mechanisms */
+    }
 
     fclose(fp);
     close(listen_sockfd);
