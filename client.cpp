@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
     server_addr_to.sin_port = htons(SERVER_PORT_TO);
     server_addr_to.sin_addr.s_addr = inet_addr(SERVER_IP);
 
-    // Configure the server address structure from which we will receive ACK data
+    // Configure the server address structure from which we will receive ACK data (newly added)
     memset(&server_addr_from, 0, sizeof(server_addr_from));
     server_addr_from.sin_family = AF_INET;
     server_addr_from.sin_port = htons(SERVER_PORT);
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
     // Initializing timeout countdown that times out "recvfrom()" function calls after a specified amt of time
     tv.tv_sec = TIMEOUT;
     tv.tv_usec = 0;
-    if (setsockopt(send_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+    if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
         perror("Error setting timeout");
         close(listen_sockfd);
         close(send_sockfd);
@@ -102,14 +102,17 @@ int main(int argc, char *argv[]) {
         packet_received = false;
 
         // As long as the packet hasn't been acknowledged yet
-        while (!packet_received) {
+        //while (!packet_received) {
             // Send the packet over the network
             bytes_sent = sendto(send_sockfd, &pkt, sizeof(pkt), 0, (struct sockaddr *)&server_addr_to, addr_size);
+
             if (bytes_sent == -1) {
                 perror("Error sending packet");
                 close(listen_sockfd);
                 close(send_sockfd);
                 return 1;
+            } else {
+                printf("Bytes sent: %d\n", bytes_sent);
             }
 
             // Waiting for the retrieval of the corresponding ack
@@ -117,19 +120,23 @@ int main(int argc, char *argv[]) {
             if (bytes_received == -1) {
                 // Timeout happens so set packet as unreceived
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    printf("Timeout occurred");
-                    packet_received = false;
+                    printf("Timeout occurred\n");
+                    //packet_received = false;
                 } else {
                     perror("Error receiving ACK");
                     close(listen_sockfd);
                     close(send_sockfd);
                     return 1;
                 }
-            } else { // ACK has been received so can break the sending loop
-                packet_received = true;
+            } else { // ACK has been received
+                // ACK number matches the sent/expected sequence number
+                if (ack_pkt.acknum == seq_num) {
+                    printf("ACK has been received");
+                    //packet_received = true;
+                } 
+                // Otherwise, ACK number does not match the sent/expected sequence number
             }
-        }
-
+        //}
         // ACK must have been received so update sequence number before starting next loop
         seq_num += 1;
     }
