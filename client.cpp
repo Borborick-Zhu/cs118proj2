@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <vector>
 
 #include "utils.h"
 
@@ -93,50 +94,53 @@ int main(int argc, char *argv[]) {
     size_t bytes_read;
     size_t bytes_sent;
     size_t bytes_received;
-    bool packet_received;
     while((bytes_read = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
+        // If bytes read doesn't fill buffer, then assume it's last packet
+        if (bytes_read < sizeof(buffer)) {
+            last = 1;
+            // Clears rest of buffer that wasn't filled
+            memset(buffer + bytes_read, '\0', sizeof(buffer) - bytes_read);
+        }
+
         // Construct a packet from buffer contents
         build_packet(&pkt, seq_num, ack_num, last, ack, bytes_read, buffer);
-         
-        // Set packet as unreceived by server
-        packet_received = false;
 
-        // As long as the packet hasn't been acknowledged yet
-        //while (!packet_received) {
-            // Send the packet over the network
-            bytes_sent = sendto(send_sockfd, &pkt, sizeof(pkt), 0, (struct sockaddr *)&server_addr_to, addr_size);
+        // Fixes bug where contents of buffer in pkt
+        if (last == 1) {
+            memcpy(pkt.payload, buffer, PAYLOAD_SIZE);
+        }
 
-            if (bytes_sent == -1) {
-                perror("Error sending packet");
+        // Send the packet over the network
+        if (sendto(send_sockfd, &pkt, sizeof(pkt), 0, (struct sockaddr *)&server_addr_to, addr_size) == -1) {
+            perror("Error sending packet");
+            close(listen_sockfd);
+            close(send_sockfd);
+            return 1;
+        } else {
+            printf("Packet sent: ");
+            printSend(&pkt, 0);
+        }
+
+        // Waiting for the retrieval of the corresponding ack
+        bytes_received = recvfrom(listen_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&server_addr_from, &ack_addr_size);
+        if (bytes_received == -1) {
+            // Timeout happens so set packet as unreceived
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                printf("Timeout occurred\n");
+                //packet_received = false;
+            } else {
+                perror("Error receiving ACK");
                 close(listen_sockfd);
                 close(send_sockfd);
                 return 1;
-            } else {
-                printf("Bytes sent: %d\n", bytes_sent);
             }
-
-            // Waiting for the retrieval of the corresponding ack
-            bytes_received = recvfrom(listen_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&server_addr_from, &ack_addr_size);
-            if (bytes_received == -1) {
-                // Timeout happens so set packet as unreceived
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    printf("Timeout occurred\n");
-                    //packet_received = false;
-                } else {
-                    perror("Error receiving ACK");
-                    close(listen_sockfd);
-                    close(send_sockfd);
-                    return 1;
-                }
-            } else { // ACK has been received
-                // ACK number matches the sent/expected sequence number
-                if (ack_pkt.acknum == seq_num) {
-                    printf("ACK has been received");
-                    //packet_received = true;
-                } 
-                // Otherwise, ACK number does not match the sent/expected sequence number
-            }
-        //}
+        } else { // ACK has been received
+            // ACK number matches the sent/expected sequence number
+            if (ack_pkt.acknum == seq_num) {
+                printf("ACK %d has been received\n", ack_pkt.acknum);
+            } 
+            // Otherwise, ACK number does not match the sent/expected sequence number
+        }
         // ACK must have been received so update sequence number before starting next loop
         seq_num += 1;
     }

@@ -15,6 +15,7 @@ int main() {
     int recv_len;
     struct packet ack_pkt;
     const char* payload = "";
+    char last = 0;
 
     // Create a UDP socket for sending
     send_sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -59,47 +60,53 @@ int main() {
     FILE *fp = fopen("output.txt", "wb");
 
     // TODO: Receive file from the client and save it as output.txt
-    size_t bytes_written;
     size_t bytes_received;
-    size_t bytes_sent;
 
-    // Receiving packet from client
-    bytes_received = recvfrom(listen_sockfd, &buffer, sizeof(buffer), 0, (struct sockaddr *)&client_addr_from, &addr_size);
-    if (bytes_received == -1) {
-        perror("Error retrieving packet");
-        close(listen_sockfd);
-        close(send_sockfd);
-        return 1;
-    }
-
-    if (expected_seq_num == buffer.seqnum) {
-        // Write the buffer to the output file
-        bytes_written = fwrite(&(buffer.payload), 1, strlen(buffer.payload), fp);
-        expected_seq_num += 1;
-
-        // Error handling if writing to the file fails. 
-
-        //send back an ACK.
-        if (buffer.last == 1) {
-            build_packet(&ack_pkt, 0, 0, 1, 1, 0, payload);
-        } else {
-            build_packet(&ack_pkt, 0, 0, 0, 1, 0, payload);
-        }
-
-        bytes_sent = sendto(send_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&client_addr_to, addr_size);
-
-        if (bytes_sent == -1){
-            perror("Error sending ACK");
+    while(1) {
+        // Receiving packet from client
+        bytes_received = recvfrom(listen_sockfd, &buffer, sizeof(buffer), 0, (struct sockaddr *)&client_addr_from, &addr_size);
+        if (bytes_received == -1) {
+            perror("Error retrieving packet");
             close(listen_sockfd);
             close(send_sockfd);
             return 1;
-        } else {
-            printf("Ack packet %d was sent back to client", ack_pkt.acknum);
         }
-        
-        
-    } else { // else out of order packet arrived
-        /* TODO - Implement out of order packet mechanisms */
+
+        // If the received packet is in-order
+        if (expected_seq_num == buffer.seqnum) {
+            printf("Just received packet with sequence number: %d\n", expected_seq_num);
+
+            // Write the buffer to the output file if it's not the LAST packet
+            fwrite(&(buffer.payload), 1, strlen(buffer.payload), fp);
+            /* TODO: Error handling if writing to the file fails. */
+
+            // Construct an ACK packet based on if the packet received is LAST or not
+            if (buffer.last == 1) {
+                build_packet(&ack_pkt, 0, expected_seq_num, 1, 1, 0, payload);
+            } else {
+                build_packet(&ack_pkt, 0, expected_seq_num, 0, 1, 0, payload);
+            }
+
+            // Send back an ACK
+            if (sendto(send_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&client_addr_to, addr_size) == -1){
+                perror("Error sending ACK");
+                close(listen_sockfd);
+                close(send_sockfd);
+                return 1;
+            } else {
+                printf("Ack packet %d was sent back to client\n", ack_pkt.acknum);
+            }
+
+            // Increment expected sequence number
+            expected_seq_num += 1;
+        } else { // else out of order packet arrived
+            /* TODO - Implement out of order packet mechanisms */
+        }
+
+        // If the last packet was sent by the client, then break the loop
+        if (buffer.last == 1) {
+            break;
+        }
     }
 
     fclose(fp);
