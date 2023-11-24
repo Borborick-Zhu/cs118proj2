@@ -92,11 +92,16 @@ int main(int argc, char *argv[]) {
     }
 
     size_t bytes_read;
-    size_t bytes_sent;
-    size_t bytes_received;
-    while((bytes_read = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
+    char resend = 0;
+    while(!last) {
+        // If resending a packet, 
+        if (resend) {
+            fseek(fp, -bytes_read, SEEK_CUR);
+        }
+
+
         // If bytes read doesn't fill buffer, then assume it's last packet
-        if (bytes_read < sizeof(buffer)) {
+        if ((bytes_read = fread(buffer, 1, sizeof(buffer), fp)) < sizeof(buffer)) {
             last = 1;
             // Clears rest of buffer that wasn't filled
             memset(buffer + bytes_read, '\0', sizeof(buffer) - bytes_read);
@@ -122,12 +127,11 @@ int main(int argc, char *argv[]) {
         }
 
         // Waiting for the retrieval of the corresponding ack
-        bytes_received = recvfrom(listen_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&server_addr_from, &ack_addr_size);
-        if (bytes_received == -1) {
-            // Timeout happens so set packet as unreceived
+        if (recvfrom(listen_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&server_addr_from, &ack_addr_size) == -1) {
+            // Timeout happens so set flag to resend
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 printf("Timeout occurred\n");
-                //packet_received = false;
+                resend = 1;
             } else {
                 perror("Error receiving ACK");
                 close(listen_sockfd);
@@ -138,11 +142,11 @@ int main(int argc, char *argv[]) {
             // ACK number matches the sent/expected sequence number
             if (ack_pkt.acknum == seq_num) {
                 printf("ACK %d has been received\n", ack_pkt.acknum);
+                resend = 0; // Set resend flag to false
+                seq_num += 1; // Increment sequence number
             } 
-            // Otherwise, ACK number does not match the sent/expected sequence number
+            // Otherwise, ACK number does not match the sent/expected sequence number so discard
         }
-        // ACK must have been received so update sequence number before starting next loop
-        seq_num += 1;
     }
     
     fclose(fp);

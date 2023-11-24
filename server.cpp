@@ -100,7 +100,20 @@ int main() {
             // Increment expected sequence number
             expected_seq_num += 1;
         } else { // else out of order packet arrived
-            /* TODO - Implement out of order packet mechanisms */
+            // One reason for packet loss in single-packet stop-and-wait: ACK lost
+
+            // Construct a "retransmission" ACK packet using the previous seq number
+            build_packet(&ack_pkt, 0, expected_seq_num - 1, 0, 1, 0, payload);
+
+            // Retransmit the ACK
+            if (sendto(send_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&client_addr_to, addr_size) == -1){
+                perror("Error sending ACK");
+                close(listen_sockfd);
+                close(send_sockfd);
+                return 1;
+            } else {
+                printf("Ack packet %d was retransmitted back to client\n", ack_pkt.acknum);
+            }
         }
 
         // If the last packet was sent by the client, then break the loop
