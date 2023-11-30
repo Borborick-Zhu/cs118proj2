@@ -51,4 +51,27 @@ void printSend(struct packet* pkt, int resend) {
         printf("SEND %d %d%s%s\n", pkt->seqnum, pkt->acknum, pkt->last ? " LAST": "", pkt->ack ? " ACK": "");
 }
 
+//utility function to increase window size: 
+void increaseWindowSize(struct packet** cwnd, int* window_size, int new_size) {
+    // Create a new buffer with the increased size
+    struct packet* new_cwnd = (struct packet*)malloc(new_size * sizeof(struct packet));
+
+    if (new_cwnd == NULL) {
+        perror("Memory allocation error");
+        exit(EXIT_FAILURE);
+    }
+
+    // Copy the existing contents to the new buffer
+    for (int i = 0; i < *window_size; ++i) {
+        new_cwnd[i] = (*cwnd)[i];
+    }
+
+    // Free the old buffer
+    free(*cwnd);
+
+    // Update the window size and buffer pointer
+    *window_size = new_size;
+    *cwnd = new_cwnd;
+}
+
 #endif
