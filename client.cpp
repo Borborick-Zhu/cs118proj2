@@ -147,6 +147,12 @@ int main(int argc, char *argv[]) {
             } else {
                 printf("Packet sent: ");
                 printSend(&pkt, 0);
+                if (last == 1) {
+                    fclose(fp);
+                    close(listen_sockfd);
+                    close(send_sockfd);
+                    return 0;
+                }
                 seq_num += 1;
             }
 
@@ -202,6 +208,12 @@ int main(int argc, char *argv[]) {
         } else {
             printf("Packet sent: ");
             printSend(&pkt, 0);
+            if (last == 1) {
+                fclose(fp);
+                close(listen_sockfd);
+                close(send_sockfd);
+                return 0;
+            }
             seq_num += 1;
         }
 
@@ -228,6 +240,12 @@ int main(int argc, char *argv[]) {
         } else {
             printf("Packet sent: ");
             printSend(&pkt, 0);
+            if (last == 1) {
+                fclose(fp);
+                close(listen_sockfd);
+                close(send_sockfd);
+                return 0;
+            }
             seq_num += 1;
         }
 
