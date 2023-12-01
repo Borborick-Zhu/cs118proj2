@@ -99,7 +99,7 @@ int main() {
 
             // Increment expected sequence number
             expected_seq_num += 1;
-        } else { // else out of order packet arrived
+        } else { // else out of order packet arrived (buffer the out of order packet)
             // One reason for packet loss in single-packet stop-and-wait: ACK lost
 
             // Construct a "retransmission" ACK packet using the previous seq number
