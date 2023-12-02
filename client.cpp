@@ -82,9 +82,7 @@ int main(int argc, char *argv[]) {
     // TODO: Read from file, and initiate reliable data transfer to the server
 
     // Initialize Congestion Window
-    struct packet *cwnd;
     int window_size = 1;
-    cwnd = (struct packet *) malloc(window_size * sizeof(struct packet));
 
     /* Good cwnd debugging code */
     // struct packet test1;
@@ -131,7 +129,7 @@ int main(int argc, char *argv[]) {
             }
 
             // Construct a packet from buffer contents
-            build_packet(&pkt, seq_num, ack_num, last, ack, bytes_read, buffer);
+            build_packet(&pkt, seq_num, ack_num, last, ack, bytes_read, buffer, window_size);
 
             // Fixes bug where contents of buffer in pkt
             if (last == 1) {
@@ -181,8 +179,8 @@ int main(int argc, char *argv[]) {
             }
         }
 
-       // Increasing cwnd size by 1
-       increaseWindowSize(&cwnd, &window_size, window_size + 1);
+       // Increasing window size by 1
+       window_size += 1;
 
        // Send next two packets
         fseek(fp, (seq_num * PAYLOAD_SIZE), SEEK_SET);
@@ -192,7 +190,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Construct first packet from buffer contents
-        build_packet(&pkt, seq_num, ack_num, last, ack, bytes_read, buffer);
+        build_packet(&pkt, seq_num, ack_num, last, ack, bytes_read, buffer, window_size);
 
         // Fixes bug where contents of buffer in pkt
         if (last == 1) {
@@ -224,7 +222,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Construct first packet from buffer contents
-        build_packet(&pkt, seq_num, ack_num, last, ack, bytes_read, buffer);
+        build_packet(&pkt, seq_num, ack_num, last, ack, bytes_read, buffer, window_size);
 
         // Fixes bug where contents of buffer in pkt
         if (last == 1) {

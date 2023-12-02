@@ -16,6 +16,8 @@ int main() {
     struct packet ack_pkt;
     const char* payload = "";
     char last = 0;
+    // struct packet dummy;
+    // build_packet(&dummy, -1, -1, 1, 1, -1, "",-1);
 
     // Create a UDP socket for sending
     send_sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -62,6 +64,12 @@ int main() {
     // TODO: Receive file from the client and save it as output.txt
     size_t bytes_received;
 
+    // Creates a buffer of size 1
+    struct packet *cache;
+    int window_size = 1;
+    cache = (struct packet *) malloc(window_size * sizeof(struct packet));
+    memset(&(cache[0]), -1, sizeof(struct packet));
+
     while(1) {
         // Receiving packet from client
         bytes_received = recvfrom(listen_sockfd, &buffer, sizeof(buffer), 0, (struct sockaddr *)&client_addr_from, &addr_size);
@@ -72,19 +80,23 @@ int main() {
             return 1;
         }
 
+        // Check if window size on client-side has changed
+        if(window_size != buffer.window_size) {
+            increaseWindowSize(&cache, &window_size, buffer.window_size);
+        }
+
         // If the received packet is in-order
         if (expected_seq_num == buffer.seqnum) {
             printf("Just received packet with sequence number: %d\n", expected_seq_num);
 
-            // Write the buffer to the output file if it's not the LAST packet
-            fwrite(&(buffer.payload), 1, strlen(buffer.payload), fp);
-            /* TODO: Error handling if writing to the file fails. */
+            // Place in-order packet into buffer at position 0
+            memcpy(&(cache[buffer.seqnum - expected_seq_num]), &buffer, sizeof(struct packet));
 
             // Construct an ACK packet based on if the packet received is LAST or not
             if (buffer.last == 1) {
-                build_packet(&ack_pkt, 0, expected_seq_num, 1, 1, 0, payload);
+                build_packet(&ack_pkt, 0, expected_seq_num, 1, 1, 0, payload, -1);
             } else {
-                build_packet(&ack_pkt, 0, expected_seq_num, 0, 1, 0, payload);
+                build_packet(&ack_pkt, 0, expected_seq_num, 0, 1, 0, payload, -1);
             }
 
             // Send back an ACK
@@ -96,14 +108,16 @@ int main() {
             } else {
                 printf("Ack packet %d was sent back to client\n", ack_pkt.acknum);
             }
-
-            // Increment expected sequence number
-            expected_seq_num += 1;
         } else { // else out of order packet arrived (buffer the out of order packet)
-            // One reason for packet loss in single-packet stop-and-wait: ACK lost
+            
+            // Place out-of-order packet into buffer at correct position
+            memcpy(&(cache[buffer.seqnum - expected_seq_num]), &buffer, sizeof(struct packet));
+
+            printf("Received pkt seqnum %d but expected %d\n", buffer.seqnum, expected_seq_num);
+            printf("Current Client window size: %d\n", buffer.window_size);
 
             // Construct a "retransmission" ACK packet using the previous seq number
-            build_packet(&ack_pkt, 0, expected_seq_num - 1, 0, 1, 0, payload);
+            build_packet(&ack_pkt, 0, expected_seq_num - 1, 0, 1, 0, payload, -1);
 
             // Retransmit the ACK
             if (sendto(send_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&client_addr_to, addr_size) == -1){
@@ -115,6 +129,26 @@ int main() {
                 printf("Ack packet %d was retransmitted back to client\n", ack_pkt.acknum);
             }
         }
+
+        while (1) {
+            if (isMemoryAllOnes(&(cache[0]), sizeof(struct packet))) {
+                break;
+            } else {
+                // Write front of cache 
+                fwrite(cache[0].payload, 1, strlen(cache[0].payload), fp);
+
+                // Increment expected sequence number
+                expected_seq_num += 1;
+                
+                // Shift contents to left
+                for (int i = 0; i < window_size - 1; i++){
+                    memcpy(&(cache[i]), &(cache[i + 1]), sizeof(struct packet));
+                }
+                memset(&(cache[window_size - 1]), -1, sizeof(struct packet));
+            }
+        }
+
+
 
         // If the last packet was sent by the client, then break the loop
         if (buffer.last == 1) {

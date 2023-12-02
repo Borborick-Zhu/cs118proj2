@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <iostream>
 
 // MACROS
 #define SERVER_IP "127.0.0.1"
@@ -26,16 +27,18 @@ struct packet {
     char ack;
     char last;
     unsigned int length;
+    int window_size;
     char payload[PAYLOAD_SIZE];
 };
 
 // Utility function to build a packet
-void build_packet(struct packet* pkt, unsigned short seqnum, unsigned short acknum, char last, char ack, unsigned int length, const char* payload) {
+void build_packet(struct packet* pkt, unsigned short seqnum, unsigned short acknum, char last, char ack, unsigned int length, const char* payload, int window_size) {
     pkt->seqnum = seqnum;
     pkt->acknum = acknum;
     pkt->ack = ack;
     pkt->last = last;
     pkt->length = length;
+    pkt->window_size = window_size;
     memcpy(pkt->payload, payload, length);
 }
 
@@ -56,9 +59,18 @@ void increaseWindowSize(struct packet** cwnd, int* window_size, int new_size) {
     // Create a new buffer with the increased size
     struct packet* new_cwnd = (struct packet*)malloc(new_size * sizeof(struct packet));
 
+    // struct packet dummy = (struct packet*)malloc(sizeof(struct packet));
+
+    // build_packet(&dummy, -1, -1, 1, 1, -1, "", -1);
+
     if (new_cwnd == NULL) {
         perror("Memory allocation error");
         exit(EXIT_FAILURE);
+    }
+
+    // Initialize all of newcwnd to be dummy packet
+    for (int i = 0; i < new_size; i++){
+        memset(&(new_cwnd[i]), -1, sizeof(struct packet));
     }
 
     // Copy the existing contents to the new buffer
@@ -72,6 +84,18 @@ void increaseWindowSize(struct packet** cwnd, int* window_size, int new_size) {
     // Update the window size and buffer pointer
     *window_size = new_size;
     *cwnd = new_cwnd;
+}
+
+int isMemoryAllOnes(const struct packet* ptr, size_t size) {
+    const unsigned char* bytes = (const unsigned char*)ptr;
+
+    for (size_t i = 0; i < size; ++i) {
+        if (bytes[i] != 0xFF) {  // Check if all bits are set to 1
+            return 0;  // Not all 1's
+        }
+    }
+
+    return 1;  // All 1's
 }
 
 #endif
