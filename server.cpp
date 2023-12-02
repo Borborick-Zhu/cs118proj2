@@ -131,12 +131,13 @@ int main() {
         }
 
         while (1) {
-            if (isMemoryAllOnes(&(cache[0]), sizeof(struct packet))) {
-                break;
-            } else {
+            
+            if (strcmp(cache[0].packet_check, "packet") == 0) {
+                
                 // Write front of cache 
+                printf("payload: %s\n", cache[0].payload);
                 fwrite(cache[0].payload, 1, strlen(cache[0].payload), fp);
-
+                printf("Written packet with seqnum %d\n", cache[0].seqnum);
                 // Increment expected sequence number
                 expected_seq_num += 1;
                 
@@ -144,13 +145,17 @@ int main() {
                 for (int i = 0; i < window_size - 1; i++){
                     memcpy(&(cache[i]), &(cache[i + 1]), sizeof(struct packet));
                 }
-                memset(&(cache[window_size - 1]), -1, sizeof(struct packet));
+                strcpy(cache[window_size - 1].packet_check, "nacket");
+            } else {
+                printf("not a packet, string is: %s\n", cache[0].packet_check);
+                break;
             }
         }
 
 
 
         // If the last packet was sent by the client, then break the loop
+        // an error if the last packet arrives before all others and breaks out of the while loop! 
         if (buffer.last == 1) {
             break;
         }
