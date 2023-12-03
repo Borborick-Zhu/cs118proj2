@@ -130,6 +130,7 @@ int main(int argc, char *argv[]) {
 
             // Construct a packet from buffer contents
             build_packet(&pkt, seq_num, ack_num, last, ack, bytes_read, buffer, window_size);
+            printf("%s\n", buffer);
 
             // Fixes bug where contents of buffer in pkt
             if (last == 1) {

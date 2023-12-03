@@ -135,19 +135,25 @@ int main() {
             if (strcmp(cache[0].packet_check, "packet") == 0) {
                 
                 // Write front of cache 
-                printf("payload: %s\n", cache[0].payload);
-                fwrite(cache[0].payload, 1, strlen(cache[0].payload), fp);
-                printf("Written packet with seqnum %d\n", cache[0].seqnum);
+                //printf("payload: %s\n", cache[0].payload);
+                if (cache[0].last == 1) {
+                    fwrite(cache[0].payload, 1, strlen(cache[0].payload), fp);
+                } else {
+                    fwrite(cache[0].payload, 1, PAYLOAD_SIZE, fp);
+                }
+                
+                //printf("Written packet with seqnum %d\n", cache[0].seqnum);
                 // Increment expected sequence number
                 expected_seq_num += 1;
                 
                 // Shift contents to left
                 for (int i = 0; i < window_size - 1; i++){
                     memcpy(&(cache[i]), &(cache[i + 1]), sizeof(struct packet));
+                    //strcpy(cache[i+1].packet_check, "nacket");
                 }
                 strcpy(cache[window_size - 1].packet_check, "nacket");
             } else {
-                printf("not a packet, string is: %s\n", cache[0].packet_check);
+                //printf("not a packet, string is: %s\n", cache[0].packet_check);
                 break;
             }
         }
@@ -155,6 +161,7 @@ int main() {
 
 
         // If the last packet was sent by the client, then break the loop
+        //TO DO:
         // an error if the last packet arrives before all others and breaks out of the while loop! 
         if (buffer.last == 1) {
             break;
