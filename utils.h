@@ -89,16 +89,4 @@ void increaseWindowSize(struct packet** cwnd, int* window_size, int new_size) {
     *cwnd = new_cwnd;
 }
 
-int isMemoryAllOnes(const struct packet* ptr, size_t size) {
-    const unsigned char* bytes = (const unsigned char*)ptr;
-
-    for (size_t i = 0; i < size; ++i) {
-        if (bytes[i] != 0xFF) {  // Check if all bits are set to 1
-            return 0;  // Not all 1's
-        }
-    }
-
-    return 1;  // All 1's
-}
-
 #endif
