@@ -15,7 +15,6 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in client_addr, server_addr_to, server_addr_from;
     socklen_t addr_size = sizeof(server_addr_to);
     socklen_t ack_addr_size = sizeof(server_addr_from);
-    struct timeval tv;
     struct packet pkt;
     struct packet ack_pkt;
     char buffer[PAYLOAD_SIZE];
@@ -82,9 +81,10 @@ int main(int argc, char *argv[]) {
     // TODO: Read from file, and initiate reliable data transfer to the server
 
     // Initializing timeout countdown that times out "recvfrom()" function calls after a specified amt of time
+    struct timeval tv;
     tv.tv_sec = TIMEOUT;
     tv.tv_usec = 0;
-    if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+    if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
         perror("Error setting timeout");
         close(listen_sockfd);
         close(send_sockfd);
