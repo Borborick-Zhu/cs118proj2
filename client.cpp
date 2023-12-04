@@ -84,98 +84,106 @@ int main(int argc, char *argv[]) {
     // Initialize Congestion Window
     int window_size = 1;
 
-    /* Good cwnd debugging code */
-    // struct packet test1;
-    // struct packet test2; 
-    // char buftest[20] = "okay";
-    // char buftest2[20] = "not okay";
-    // build_packet(&test1, 1, 0, '0', '0', 20, buftest);
-    // build_packet(&test2, 2, 0, '0', '0', 20, buftest2);
-    // memcpy(&(cwnd[0]), &test1, sizeof(struct packet));
-    // memcpy(&(cwnd[1]), &test2, sizeof(struct packet));
-
-    // for (int i = 0; i < window_size; i++) { 
-    //      printf("contents: %s\n", cwnd[i].payload);
-    // }
-
-   
-
     // Initializing timeout countdown that times out "recvfrom()" function calls after a specified amt of time
-    // tv.tv_sec = TIMEOUT;
-    // tv.tv_usec = 0;
-    // if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-    //     perror("Error setting timeout");
-    //     close(listen_sockfd);
-    //     close(send_sockfd);
-    //     return 1;
-    // }
+    tv.tv_sec = TIMEOUT;
+    tv.tv_usec = 0;
+    if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        perror("Error setting timeout");
+        close(listen_sockfd);
+        close(send_sockfd);
+        return 1;
+    }
 
     size_t bytes_read;
-    char resend = 0;
     unsigned short total_packets_received = 0;
     int packets_received = 0;
+    int dupe_ack_counter = 0;
     while(1) {
-        // If resending a packet, 
-        if (resend) {
-            fseek(fp, -bytes_read, SEEK_CUR);
-        }
-
         // Sends one packet per packet received
         while (packets_received != window_size) {
-            fseek(fp, (seq_num * PAYLOAD_SIZE), SEEK_SET);
-            if ((bytes_read = fread(buffer, 1, sizeof(buffer), fp)) < sizeof(buffer)) {
-                last = 1;
-                memset(buffer + bytes_read, '\0', sizeof(buffer) - bytes_read);
-            }
+            //printf("%d\n", dupe_ack_counter);
+            if (dupe_ack_counter == 0 || dupe_ack_counter >= 3){
+                fseek(fp, (seq_num * PAYLOAD_SIZE), SEEK_SET);
+                if ((bytes_read = fread(buffer, 1, sizeof(buffer), fp)) < sizeof(buffer)) {
+                    last = 1;
+                    memset(buffer + bytes_read, '\0', sizeof(buffer) - bytes_read);
+                }
 
-            // Construct a packet from buffer contents
-            build_packet(&pkt, seq_num, ack_num, last, ack, bytes_read, buffer, window_size);
-            printf("%s\n", buffer);
+                // Construct a packet from buffer contents
+                build_packet(&pkt, seq_num, ack_num, last, ack, bytes_read, buffer, window_size);
 
-            // Fixes bug where contents of buffer in pkt
-            if (last == 1) {
-                memcpy(pkt.payload, buffer, PAYLOAD_SIZE);
-            }
-
-            // Send the packet over the network
-            if (sendto(send_sockfd, &pkt, sizeof(pkt), 0, (struct sockaddr *)&server_addr_to, addr_size) == -1) {
-                perror("Error sending packet");
-                close(listen_sockfd);
-                close(send_sockfd);
-                return 1;
-            } else {
-                printf("Packet sent: ");
-                printSend(&pkt, 0);
+                // Fixes bug where contents of buffer in pkt
                 if (last == 1) {
-                    fclose(fp);
+                    memcpy(pkt.payload, buffer, PAYLOAD_SIZE);
+                }
+
+                // Send the packet over the network
+                if (sendto(send_sockfd, &pkt, sizeof(pkt), 0, (struct sockaddr *)&server_addr_to, addr_size) == -1) {
+                    perror("Error sending packet");
                     close(listen_sockfd);
                     close(send_sockfd);
-                    return 0;
+                    return 1;
+                } else {
+                    printf("Packet sent: ");
+                    printSend(&pkt, 0);
+                    if (last == 1) {
+                        fclose(fp);
+                        close(listen_sockfd);
+                        close(send_sockfd);
+                        return 0;
+                    }
+                    if (dupe_ack_counter == 3) {
+                        seq_num += 4;
+                    } else {
+                        seq_num += 1;
+                    }
                 }
-                seq_num += 1;
             }
 
             // Waiting for the retrieval of the corresponding ack
             if (recvfrom(listen_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&server_addr_from, &ack_addr_size) == -1) {
                 // Timeout happens so set flag to resend
-                //if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    //printf("Timeout occurred\n");
-                    //resend = 1;
-                //} else {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    printf("Timeout Occurred\n\n");
+                    window_size = 1;
+                    seq_num = total_packets_received;
+                    packets_received = 0;
+                    dupe_ack_counter = 0;
+                } else {
                     perror("Error receiving ACK");
                     close(listen_sockfd);
                     close(send_sockfd);
                     return 1;
-                //}
+                }
             } else { // ACK has been received
-                // 
                 if (ack_pkt.acknum == total_packets_received) {
-                    total_packets_received += 1;
-                    packets_received += 1;
+                    // Fast retransmission packet came back
+                    if (dupe_ack_counter >= 3) {
+                        total_packets_received += (dupe_ack_counter + 1);
+                        packets_received = 1;
+                        window_size -= dupe_ack_counter;
+                    } else {
+                        total_packets_received += 1;
+                        packets_received += 1;
+                    }
+                    dupe_ack_counter = 0;
                 } else if (ack_pkt.acknum > total_packets_received) {
                     total_packets_received = ack_pkt.acknum;
                     packets_received += ack_pkt.acknum - total_packets_received;
-                }// less than so there is a duplicate ack.
+                    dupe_ack_counter = 0;
+                } else if (ack_pkt.acknum == total_packets_received - 1) {
+                    printf("Duplicate ACK %d\n", ack_pkt.acknum);
+                    dupe_ack_counter += 1;
+                    // This is the fast retransmit case
+                    if (dupe_ack_counter == 3) {
+                        seq_num = ack_pkt.acknum + 1;
+                        window_size = (window_size / 2) + 3;
+                        packets_received = 3;
+                    } else if (dupe_ack_counter > 3) {
+                        window_size += 1;
+                        packets_received += 1;
+                    }
+                }
                 // Otherwise, ACK number does not match the sent/expected sequence number so discard
             }
         }
@@ -249,10 +257,17 @@ int main(int argc, char *argv[]) {
         }
 
         if (recvfrom(listen_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&server_addr_from, &ack_addr_size) == -1) {
-            perror("Error receiving ACK");
-            close(listen_sockfd);
-            close(send_sockfd);
-            return 1;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                printf("Timeout occured");
+                window_size = 1;
+                seq_num = total_packets_received;
+                packets_received = 0;
+            } else {
+                perror("Error receiving ACK");
+                close(listen_sockfd);
+                close(send_sockfd);
+                return 1;
+            }
         } else {
             // 
             if (ack_pkt.acknum == total_packets_received) {
@@ -261,7 +276,11 @@ int main(int argc, char *argv[]) {
             } else if (ack_pkt.acknum > total_packets_received) {
                 total_packets_received = ack_pkt.acknum;
                 packets_received = ack_pkt.acknum - total_packets_received;
-            }// less than so there is a duplicate ack.
+            } else if (ack_pkt.acknum == total_packets_received - 1) {
+                printf("Duplicate ACK Case on window increase %d\n", ack_pkt.acknum);
+                dupe_ack_counter += 1;
+                // This is the fast retransmit case
+            }
             // Otherwise, ACK number does not match the sent/expected sequence number so discard
         }
     }

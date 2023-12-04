@@ -138,6 +138,10 @@ int main() {
                 //printf("payload: %s\n", cache[0].payload);
                 if (cache[0].last == 1) {
                     fwrite(cache[0].payload, 1, strlen(cache[0].payload), fp);
+                    fclose(fp);
+                    close(listen_sockfd);
+                    close(send_sockfd);
+                    return 0;
                 } else {
                     fwrite(cache[0].payload, 1, PAYLOAD_SIZE, fp);
                 }
@@ -156,15 +160,6 @@ int main() {
                 //printf("not a packet, string is: %s\n", cache[0].packet_check);
                 break;
             }
-        }
-
-
-
-        // If the last packet was sent by the client, then break the loop
-        //TO DO:
-        // an error if the last packet arrives before all others and breaks out of the while loop! 
-        if (buffer.last == 1) {
-            break;
         }
     }
 
