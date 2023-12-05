@@ -87,6 +87,8 @@ int main() {
             sendto(send_sockfd, &ack_pkt, sizeof(struct packet), 0, (struct sockaddr *)&client_addr_to, sizeof(client_addr_to));
             printSend(&ack_pkt, 0);
         }
+
+        printf("\n");
     }
 
     fclose(fp);
