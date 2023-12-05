@@ -64,7 +64,7 @@ int main() {
                 fwrite(buffer.payload, 1, buffer.length, fp);
 
                 // Build and send acknowledgment to the client
-                build_packet(&ack_pkt, 0, expected_seq_num, 0, 1, 0, NULL);
+                build_packet(&ack_pkt, 0, expected_seq_num, buffer.last, 1, 0, NULL);
                 sendto(send_sockfd, &ack_pkt, sizeof(struct packet), 0, (struct sockaddr *)&client_addr_to, sizeof(client_addr_to));
                 printSend(&ack_pkt, 0);
 
@@ -81,13 +81,7 @@ int main() {
                 sendto(send_sockfd, &ack_pkt, sizeof(struct packet), 0, (struct sockaddr *)&client_addr_to, sizeof(client_addr_to));
                 printSend(&ack_pkt, 0);
             }
-        } else {
-            // Handle packet loss or error, request retransmission of the expected packet
-            build_packet(&ack_pkt, 0, (expected_seq_num - 1 + MAX_SEQUENCE) % MAX_SEQUENCE, 0, 1, 0, NULL);
-            sendto(send_sockfd, &ack_pkt, sizeof(struct packet), 0, (struct sockaddr *)&client_addr_to, sizeof(client_addr_to));
-            printSend(&ack_pkt, 0);
         }
-
         printf("\n");
     }
 

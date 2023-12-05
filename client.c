@@ -76,10 +76,14 @@ int main(int argc, char *argv[]) {
     // Fixed batch of packets
     struct packet batch[WINDOW_SIZE];
 
+    char send = 1;
+
     while (1) {
-        // // If entire window has been received
-        if ((received_packets % WINDOW_SIZE) == 0) {
+        // If supposed to send
+        if (send) {
+            // Reset some values
             int num_packets_in_window = 0;
+
             // Construct batch of size WINDOW_SIZE and insert into window
             for (int i = 0; i < WINDOW_SIZE && !feof(fp); i++) {
                 // Seek for correct file contents in input file
@@ -98,24 +102,14 @@ int main(int argc, char *argv[]) {
                 seq_num = (seq_num + 1) % MAX_SEQUENCE;
             }
 
-            // Send entire batch 
+            // Send entire batch in window
             for (int i = 0; i < num_packets_in_window; i++) {
                 sendto(send_sockfd, &batch[i], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
                 printSend(&batch[i], 0);      
             }
+
+            printf("\n");
         }
-
-        // fseek(fp, (received_packets * PAYLOAD_SIZE), SEEK_SET);
-
-        // // Read a chunk from the file
-        // size_t bytesRead = fread(buffer, 1, PAYLOAD_SIZE, fp);
-
-        // // Build a packet
-        // build_packet(&pkt, seq_num, ack_num, (bytesRead < PAYLOAD_SIZE), ack, bytesRead, buffer);
-
-        // // Send the packet to the server
-        // sendto(send_sockfd, &pkt, sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
-        // printSend(&pkt, 0);
 
         // Wait for acknowledgment from the server
         fd_set readfds;
@@ -128,34 +122,49 @@ int main(int argc, char *argv[]) {
         int selectResult = select(listen_sockfd + 1, &readfds, NULL, NULL, &tv);
 
         if (selectResult > 0) {
-            
+        
             // Data is available to read
             ssize_t recv_size = recvfrom(listen_sockfd, &ack_pkt, sizeof(struct packet), 0, (struct sockaddr *)&server_addr_from, &addr_size);
-            
-            printRecv(&ack_pkt);
-            ack_num = ack_pkt.seqnum;
-            received_packets += 1;
-            if (ack_pkt.last == 1) {
-                break;
-            }
-            // if (recv_size > 0 && ack_pkt.ack == 1 && ack_pkt.acknum == seq_num) { // Received next expected ACK
-            //     //printRecv(&ack_pkt);
 
-            //     // Move to the next expected number number
-            //     ack_num = ack_pkt.seqnum;
-            //     received_packets += 1;
-            //     if (ack_pkt.last == 1) {
-            //         break;
-            //     }
+            // The data read is a valid packet
+            if (recv_size > 0 && ack_pkt.ack == 1) { 
+                // Received an expected ACK
+                if (ack_pkt.acknum >= (received_packets % MAX_SEQUENCE)){
+                    printRecv(&ack_pkt);
+                    
+                    // Increment to the next expected seq number
+                    received_packets += (ack_pkt.acknum - received_packets) + 1; 
 
-            // } else if (recv_size > 0 && ack_pkt.ack == 1 && ack_pkt.acknum > seq_num){ // Received later ACK than expected ACK
-            //     // Move expected seq number to be later ACK
-            // } else if (recv_size > 0 && ack_pkt.ack == 1 && ack_pkt.acknum < seq_num){ // Received earlier ACK than expected ACK
-            //     // Explicitly do nothing
-            // }
+                    // If you've received enough packets to constitute one window length
+                    if ((received_packets % WINDOW_SIZE) == 0) {
+                        send = 1; // Set flag to send next batch
+                    } else {
+                        send = 0; // Wait for rest of window
+                    }
+
+                    // Set expected ack_num
+                    ack_num = ack_pkt.seqnum;
+
+                    // Check if the ack packet is the last one and break if so
+                    if (ack_pkt.last) {
+                        break;
+                    }
+                }
+
+            } 
         } else {
-            // Handle timeout, retransmit the packet
-            printSend(&pkt, 1);
+            // Handle timeout, retransmit the batch
+            for (int i = 0; i < WINDOW_SIZE; i++) {
+                printSend(&batch[i], 1);
+            }
+
+            // Set send flag
+            send = 1;
+
+            // Reset parameters to resend the previous window
+            seq_num -= WINDOW_SIZE;
+            received_packets -= (received_packets % WINDOW_SIZE);
+            printf("\n");
         }
     }
 
