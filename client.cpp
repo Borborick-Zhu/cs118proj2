@@ -74,6 +74,7 @@ int main(int argc, char *argv[])
     int desired_ack = 0; // next packet thats we want to be acked (its seq num)
     int latest_sent = -1; // latest sent packet (seq num)
     int dup = 0; // number of duplicates. 
+    int ssthresh = 5; // slow start threshold
 
     //window should go from last_acked to last_acked-1 (inclusive)
 
@@ -112,7 +113,7 @@ int main(int argc, char *argv[])
         //set timeout. 
         struct timeval tv; 
         tv.tv_sec = 0; 
-        tv.tv_usec = 210000; 
+        tv.tv_usec = 300000; 
         if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv) < 0) {
             perror("Setting timeout error\n");
             fclose(fp);
@@ -137,8 +138,13 @@ int main(int argc, char *argv[])
                 // if regular ack is received or if it is greater than. 
                 if (ack_pkt.acknum >= desired_ack) {
                     printRecv(&ack_pkt);
-                    //increase window size by 1/n
-                    cwnd += (1.0 / (int) cwnd);
+                    
+                    // Congestional Avoidance
+                    if (cwnd > ssthresh) {
+                        cwnd += (1.0 / (int) cwnd);
+                    } else { // Slow Start
+                        cwnd += 1;
+                    }
                     printf("cwnd is now: %f\n", cwnd);
 
                     //change the value of the next desired acked. 
@@ -169,6 +175,9 @@ int main(int argc, char *argv[])
                     if (dup == 3) {
                         // Alter window size
                         cwnd = (cwnd / 2) + 3;
+
+                        // Change ssthresh
+                        ssthresh = 2 < std::floor(cwnd / 2) ? 2 : std::floor(cwnd / 2);
 
                         // Set fast retransmit flag
                         fr = 1;

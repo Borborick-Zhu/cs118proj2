@@ -1,10 +1,16 @@
 Report.txt: Evan Zhao and Borborick Zhu
 
-Implementation of AIMD:
+Implementation of AIMD / Fast Retransmit & Recovery:
 
 * We first implemented a sliding window across a packet_buffer that stored all the packets in one.
 * Started off with a window size of 1 and increased the window size for every n packets that came back.
 * With 3 duplicate acks, we implement fast retransmit (that instantly sends the packet the server does not have). Window size is halved. 
 * With more than 3 duplicate acks, keep increasing the window size by 1 and also keep track of what packets have been sent.
 * When timeout, resend the packet that has timed out and exit so that the loop and re-run and receive acks from then on. The window size is reset to 1.
-* On the server side, there is a buffer for the packets. If out of order packets are arrived, they are put in the correct spot, and only when in order packets arrive, everything is written until there is another out of order packet. 
+* On the server side, there is a buffer for the packets. If out of order packets are arrived, they are put in the correct spot, and only when in order packets arrive, everything is written until there is another out of order packet.
+
+Implementation of SS:
+
+* Set an initial ssthresh of 5:
+  * Upon 3 dup acks, ssthresh gets set to minimum of 2 or half of congestion window size
+  * Every time ACK received, either add 1 to cwnd or do CA (add 1/n) based on value of ssthresh
