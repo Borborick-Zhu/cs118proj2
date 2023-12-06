@@ -27,20 +27,18 @@ struct packet {
     char last;
     unsigned int length;
     char packet_check[7];
-    int window_size;
     char payload[PAYLOAD_SIZE];
     
 };
 
 // Utility function to build a packet
-void build_packet(struct packet* pkt, unsigned short seqnum, unsigned short acknum, char last, char ack, unsigned int length, const char* payload, int window_size) {
+void build_packet(struct packet* pkt, unsigned short seqnum, unsigned short acknum, char last, char ack, unsigned int length, const char* payload) {
     strcpy(pkt->packet_check, "packet");
     pkt->seqnum = seqnum;
     pkt->acknum = acknum;
     pkt->ack = ack;
     pkt->last = last;
     pkt->length = length;
-    pkt->window_size = window_size;
     memcpy(pkt->payload, payload, length);
 }
 
