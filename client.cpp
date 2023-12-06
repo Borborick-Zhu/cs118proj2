@@ -99,14 +99,18 @@ int main(int argc, char *argv[])
             if (i > latest_sent) {
                 latest_sent = i;
                 sendto(send_sockfd, &packet_buffer[i], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
+                if (packet_buffer[i].last) {
+                    break;
+                }
                 printf("Sending packet %d\n", i);
+                printf("Desired ACK: %d\n", desired_ack);
             }
         }
 
         //set timeout. 
         struct timeval tv; 
-        tv.tv_sec = 0; 
-        tv.tv_usec = 203000; 
+        tv.tv_sec = 1; 
+        tv.tv_usec = 0; 
         if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof tv) < 0) {
             perror("Error setting socket timeout function.\n");
             close(listen_sockfd);
@@ -132,20 +136,39 @@ int main(int argc, char *argv[])
 
                 //ack cases: 
                 // if regular ack is received or if it is greater than. 
-                if (ack_pkt.seqnum >= desired_ack) {
+                if (ack_pkt.acknum >= desired_ack) {
+                    printRecv(&ack_pkt);
                     //increase window size by 1/n
                     window_size += (1.0 / (int) window_size);
+                    printf("window_size is now: %f\n", window_size);
                     //change the value of the next desired acked. 
-                    desired_ack = ack_pkt.seqnum + 1;
+                    desired_ack = ack_pkt.acknum + 1;
                     break;
-                } else if (ack_pkt.seqnum == desired_ack - 1) { // if duplicate ack is received. 
+                } else if (ack_pkt.acknum == desired_ack - 1) { // if duplicate ack is received. 
                     //do nothing for now. 
-                } 
+                    printf("Received a dupe packet: ");
+                    printRecv(&ack_pkt);
+                }
 
             } else { // we timeout. 
-                
+
+                printf("Timed out\n");
+                // Reset window size
+                window_size = 1;
+
+                // Retransmit the beginning of the window
+                sendto(send_sockfd, &packet_buffer[desired_ack], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
+
+                // Reset the timeout
+                if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof tv) < 0) {
+                    perror("Error setting socket timeout function.\n");
+                    close(listen_sockfd);
+                    close(send_sockfd);
+                    return 1;
+                }
             }
         }
+        printf("\n");
     }
 
     fclose(fp);

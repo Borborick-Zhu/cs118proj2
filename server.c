@@ -65,6 +65,7 @@ int main() {
     struct packet cache[4096];
 
     while(1) {
+
         // Receiving packet from client
         bytes_received = recvfrom(listen_sockfd, &buffer, sizeof(buffer), 0, (struct sockaddr *)&client_addr_from, &addr_size);
         if (bytes_received == (unsigned long)-1) {
@@ -78,10 +79,35 @@ int main() {
         if (expected_seq_num == buffer.seqnum) {
             printf("Just received packet with sequence number: %d\n", expected_seq_num);
 
-            cache[expected_seq_num] = buffer;
+            cache[expected_seq_num] = buffer; //write it into the buffer.
+
+            // Check front of cache and write, incrementing expected seq_num
+            while (1) {
+                if (strcmp(cache[expected_seq_num].packet_check, "packet") == 0) {
+                    
+                    // Write front of cache 
+                    //printf("payload: %s\n", cache[0].payload);
+                    if (cache[expected_seq_num].last == 1) {
+                        fwrite(cache[expected_seq_num].payload, 1, strlen(cache[expected_seq_num].payload), fp);
+                        fclose(fp);
+                        close(listen_sockfd);
+                        close(send_sockfd);
+                        return 0;
+                    } 
+                    fwrite(cache[expected_seq_num].payload, 1, PAYLOAD_SIZE, fp);
+                    
+                    
+                    //printf("Written packet with seqnum %d\n", cache[0].seqnum);
+                    // Increment expected sequence number
+                    expected_seq_num += 1;
+                } else {
+                    //printf("not a packet, string is: %s\n", cache[0].packet_check);
+                    break;
+                }
+            }
 
             // Construct an ACK packet based on if the packet received is LAST or not
-            build_packet(&ack_pkt, 0, expected_seq_num, buffer.last, 1, 0, payload);
+            build_packet(&ack_pkt, 0, expected_seq_num - 1, buffer.last, 1, 0, payload);
 
             // Send back an ACK
             if (sendto(send_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&client_addr_to, addr_size) == -1){
@@ -111,31 +137,6 @@ int main() {
                 return 1;
             } else {
                 printf("Ack packet %d was retransmitted back to client\n", ack_pkt.acknum);
-            }
-        }
-
-        while (1) {
-            
-            if (strcmp(cache[expected_seq_num].packet_check, "packet") == 0) {
-                
-                // Write front of cache 
-                //printf("payload: %s\n", cache[0].payload);
-                if (cache[expected_seq_num].last == 1) {
-                    fwrite(cache[expected_seq_num].payload, 1, strlen(cache[expected_seq_num].payload), fp);
-                    fclose(fp);
-                    close(listen_sockfd);
-                    close(send_sockfd);
-                    return 0;
-                } else {
-                    fwrite(cache[expected_seq_num].payload, 1, PAYLOAD_SIZE, fp);
-                }
-                
-                //printf("Written packet with seqnum %d\n", cache[0].seqnum);
-                // Increment expected sequence number
-                expected_seq_num += 1;
-            } else {
-                //printf("not a packet, string is: %s\n", cache[0].packet_check);
-                break;
             }
         }
     }
