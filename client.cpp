@@ -112,13 +112,14 @@ int main(int argc, char *argv[])
 
         //set timeout. 
         struct timeval tv; 
-        tv.tv_sec = 1; 
-        tv.tv_usec = 0; 
-        if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof tv) < 0) {
-            perror("Error setting socket timeout function.\n");
+        tv.tv_sec = 0; 
+        tv.tv_usec = 203000; 
+        if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv) < 0) {
+            perror("Setting timeout error\n");
+            fclose(fp);
             close(listen_sockfd);
             close(send_sockfd);
-            return 1;
+            return -1;
         }
 
         //logic to wait for the acks now. 
@@ -154,7 +155,7 @@ int main(int argc, char *argv[])
                     // Check if this was a fast retransmit case
                     if (fr) {
                         // Reduce window size by half
-                        window_size = std::floor(window_size / 2);
+                        window_size = std::floor(((window_size / 2) - dup));
 
                         // Reset the fast retransmit flag
                         fr = 0;
@@ -182,11 +183,12 @@ int main(int argc, char *argv[])
                         printSend(&packet_buffer[desired_ack - 1], 1);
 
                         // Reset the timeout
-                        if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof tv) < 0) {
-                            perror("Error setting socket timeout function.\n");
+                        if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv) < 0) {
+                            perror("Setting timeout error\n");
+                            fclose(fp);
                             close(listen_sockfd);
                             close(send_sockfd);
-                            return 1;
+                            return -1;
                          }   
                         
                     } else if (dup > 3) { // If the counter exceeds 3
@@ -206,11 +208,12 @@ int main(int argc, char *argv[])
                 latest_sent = desired_ack;
 
                 // Reset the timeout
-                if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof tv) < 0) {
-                    perror("Error setting socket timeout function.\n");
+                if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv) < 0) {
+                    perror("Setting timeout error\n");
+                    fclose(fp);
                     close(listen_sockfd);
                     close(send_sockfd);
-                    return 1;
+                    return -1;
                 }
             }
         }
