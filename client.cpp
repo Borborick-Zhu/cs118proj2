@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
         //set timeout. 
         struct timeval tv; 
         tv.tv_sec = 0; 
-        tv.tv_usec = 210000; 
+        tv.tv_usec = 300000; 
         if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv) < 0) {
             perror("Setting timeout error\n");
             fclose(fp);
@@ -203,6 +203,9 @@ int main(int argc, char *argv[])
             } else { // we timeout. 
                 // Reset window size
                 cwnd = 1;
+
+                // Reset the ssthresh
+                ssthresh = std::floor(cwnd / 2);
 
                 printSend(&packet_buffer[desired_ack - 1], 1);
                 // Retransmit the beginning of the window
