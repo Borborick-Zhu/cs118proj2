@@ -13,7 +13,7 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in client_addr, server_addr_to, server_addr_from;
     socklen_t addr_size = sizeof(server_addr_to);
     struct timeval tv;
-    // struct packet pkt;
+    struct packet pkt;
     struct packet ack_pkt;
     char buffer[PAYLOAD_SIZE];
     unsigned short seq_num = 0;
@@ -73,30 +73,40 @@ int main(int argc, char *argv[]) {
     // TODO: Read from file, and initiate reliable data transfer to the server
     int received_packets = 0;
 
+    // Cwnd size
+    int cwnd = 1;
+
     // Fixed batch of packets
-    struct packet batch[WINDOW_SIZE];
+    // struct packet batch[WINDOW_SIZE];
 
     int num_packets_in_window;
+
+    char retransmit = 0;
 
     while (1) {
         // Reset some values
         num_packets_in_window = 0;
         
-        for (int i = 0; i < WINDOW_SIZE; i++) {
+        for (int i = 0; i < cwnd; i++) {
             // Seek for correct file contents in input file
             fseek(fp, ((received_packets + i) * PAYLOAD_SIZE), SEEK_SET);
 
             // Read a chunk from file
             size_t bytesRead = fread(buffer, 1, PAYLOAD_SIZE, fp);
 
-            // Build a packet and insert it into the i-th position in the buffer
-            build_packet(&batch[i], seq_num, ack_num, (bytesRead < PAYLOAD_SIZE), ack, bytesRead, buffer);
+            // Build a packet
+            build_packet(&pkt, seq_num, ack_num, (bytesRead < PAYLOAD_SIZE), ack, bytesRead, buffer);
 
             // Increment counter
             num_packets_in_window += 1;
 
             // Increment the sequence number
             seq_num = (seq_num + 1) % MAX_SEQUENCE;
+
+            // Send the packet
+            sendto(send_sockfd, &pkt, sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
+            printSend(&pkt, 0);      
+            usleep(100);
 
             // Break out of loop if you've read final packet
             if (bytesRead < PAYLOAD_SIZE) {
@@ -105,10 +115,11 @@ int main(int argc, char *argv[]) {
         }
 
         // Send entire batch in window
-        for (int i = 0; i < num_packets_in_window; i++) {
-            sendto(send_sockfd, &batch[i], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
-            printSend(&batch[i], 0);      
-        }
+        // for (int i = 0; i < num_packets_in_window; i++) {
+        //     sendto(send_sockfd, &batch[i], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
+        //     printSend(&batch[i], 0);      
+        //     usleep(100);
+        // }
 
         // Wait for acknowledgment from the server
         tv.tv_sec = TIMEOUT;
@@ -121,14 +132,15 @@ int main(int argc, char *argv[]) {
             return 1;
         }   
 
-        // Receive data until you get the last packet int he window
+        // Receive data until you get the last packet in the window
         while (1) {
             if (recvfrom(listen_sockfd, &ack_pkt, sizeof(struct packet), 0, (struct sockaddr *)&server_addr_from, &addr_size) > 0) { 
-                // Received last in window
+                // Received last in window (RTT came back)
                 if (ack_pkt.acknum == seq_num - 1) {
                     received_packets += num_packets_in_window;
                     printRecv(&ack_pkt);
                     printf("\n");
+                    
 
                     if (ack_pkt.last) {
                         fclose(fp);
@@ -137,16 +149,29 @@ int main(int argc, char *argv[]) {
                         return 0;
                     }
 
+                    // If this batch was a retransmit batch, reset flag and set cwnd to 1
+                    if (retransmit) {
+                        cwnd = 1;
+                        retransmit = 0;
+                    } else { // Otherwise, increment cwnd
+                        cwnd += 1;
+                    }
+
                     break;
                 } 
             } else {
-                // Handle timeout, retransmit the batch
-                for (int i = 0; i < WINDOW_SIZE; i++) {
-                    printSend(&batch[i], 1);
-                }
+                // Handle timeout, retransmit starting from beginning of window
+                printf("Timeout retransmission starting from packet %d\n", seq_num - num_packets_in_window);
+
+                // Set retransmit to 1
+                retransmit = 1;
 
                 // Reset parameters to resend the previous window
-                seq_num -= num_packets_in_window;
+                if ((seq_num - num_packets_in_window) < 0) {
+                    seq_num = seq_num - num_packets_in_window + MAX_SEQUENCE;
+                } else {
+                    seq_num -= num_packets_in_window;
+                }
                 printf("\n");
                 break;
             } 
