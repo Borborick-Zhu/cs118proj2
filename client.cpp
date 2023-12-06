@@ -13,8 +13,6 @@
 int main(int argc, char *argv[])
 {
     //INITIALIZE VARIABLES:
-    //int cc = 0; // congestion control methods. 
-    //int ssthresh = 1; // ssthresh variables. 
     int listen_sockfd, send_sockfd;
     struct sockaddr_in client_addr, server_addr_to, server_addr_from;
     socklen_t addr_size = sizeof(server_addr_to);
