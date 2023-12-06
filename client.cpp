@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
         //set timeout. 
         struct timeval tv; 
         tv.tv_sec = 0; 
-        tv.tv_usec = 203000; 
+        tv.tv_usec = 210000; 
         if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv) < 0) {
             perror("Setting timeout error\n");
             fclose(fp);
