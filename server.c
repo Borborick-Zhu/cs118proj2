@@ -78,8 +78,6 @@ int main() {
         if (expected_seq_num == buffer.seqnum) {
             printf("Just received packet with sequence number: %d\n", expected_seq_num);
 
-            // Place in-order packet into buffer at position 0
-            //memcpy(&(cache[buffer.seqnum - expected_seq_num]), &buffer, sizeof(struct packet));
             cache[expected_seq_num] = buffer;
 
             // Construct an ACK packet based on if the packet received is LAST or not
@@ -103,7 +101,7 @@ int main() {
             //printf("Current Client window size: %d\n", buffer.window_size);
 
             // Construct a "retransmission" ACK packet using the previous seq number
-            build_packet(&ack_pkt, 0, expected_seq_num - 1, 0, 1, 0, payload, -1);
+            build_packet(&ack_pkt, 0, expected_seq_num, 0, 1, 0, payload, -1);
 
             // Retransmit the ACK
             if (sendto(send_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&client_addr_to, addr_size) == -1){
