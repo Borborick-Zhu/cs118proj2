@@ -12,5 +12,5 @@ Implementation of AIMD / Fast Retransmit & Recovery:
 Implementation of SS:
 
 * Set an initial ssthresh of 5:
-  * Upon 3 dup acks, ssthresh gets set to minimum of 2 or half of congestion window size
+  * Upon 3 dup acks, ssthresh gets set to maximum of 2 or half of congestion window size
   * Every time ACK received, either add 1 to cwnd or do CA (add 1/n) based on value of ssthresh
