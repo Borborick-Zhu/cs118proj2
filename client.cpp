@@ -153,8 +153,8 @@ int main(int argc, char *argv[])
 
                     // Check if this was a fast retransmit case
                     if (fr) {
-                        // Reduce window size by half
-                        cwnd = std::floor(((cwnd / 2) - dup));
+                        // Reduce window size after receiving retransmission to be ssthresh (removing all duplicates)
+                        cwnd  = ssthresh;
 
                         // Reset the fast retransmit flag
                         fr = 0;
@@ -171,11 +171,11 @@ int main(int argc, char *argv[])
 
                     // If dup pkts received is 3
                     if (dup == 3) {
-                        // Alter window size
-                        cwnd = (cwnd / 2) + 3;
+                        // Change ssthresh to be max(2, (cwnd / 2))
+                        ssthresh = 2 < std::floor(cwnd / 2) ? std::floor(cwnd / 2) : 2;
 
-                        // Change ssthresh
-                        ssthresh = 2 < std::floor(cwnd / 2) ? 2 : std::floor(cwnd / 2);
+                        // Alter window size
+                        cwnd = ssthresh + 3;
 
                         // Set fast retransmit flag
                         fr = 1;
@@ -204,8 +204,8 @@ int main(int argc, char *argv[])
                 // Reset window size
                 cwnd = 1;
 
-                // Reset the ssthresh
-                ssthresh = std::floor(cwnd / 2);
+                // Change ssthresh to be max(2, (cwnd / 2))
+                ssthresh = 2 < std::floor(cwnd / 2) ? std::floor(cwnd / 2) : 2;
 
                 printSend(&packet_buffer[desired_ack - 1], 1);
                 // Retransmit the beginning of the window

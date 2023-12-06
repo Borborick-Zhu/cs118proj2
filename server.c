@@ -82,29 +82,22 @@ int main() {
             cache[expected_seq_num] = buffer; //write it into the buffer.
 
             // Check front of cache and write, incrementing expected seq_num
-            while (1) {
-                if (strcmp(cache[expected_seq_num].packet_check, "packet") == 0) {
-                    
-                    // Write front of cache 
-                    //printf("payload: %s\n", cache[0].payload);
-                    if (cache[expected_seq_num].last == 1) {
-                        fwrite(cache[expected_seq_num].payload, 1, strlen(cache[expected_seq_num].payload), fp);
-                        fclose(fp);
-                        close(listen_sockfd);
-                        close(send_sockfd);
-                        return 0;
-                    } 
-                    fwrite(cache[expected_seq_num].payload, 1, PAYLOAD_SIZE, fp);
-                    
-                    
-                    //printf("Written packet with seqnum %d\n", cache[0].seqnum);
-                    // Increment expected sequence number
-                    expected_seq_num += 1;
-                } else {
-                    //printf("not a packet, string is: %s\n", cache[0].packet_check);
-                    break;
-                }
-            }
+            while (strcmp(cache[expected_seq_num].packet_check, "packet") == 0) {
+                // Write front of cache 
+                //printf("payload: %s\n", cache[0].payload);
+                if (cache[expected_seq_num].last == 1) {
+                    fwrite(cache[expected_seq_num].payload, 1, strlen(cache[expected_seq_num].payload), fp);
+                    fclose(fp);
+                    close(listen_sockfd);
+                    close(send_sockfd);
+                    return 0;
+                } 
+                fwrite(cache[expected_seq_num].payload, 1, PAYLOAD_SIZE, fp);
+                
+                //printf("Written packet with seqnum %d\n", cache[0].seqnum);
+                // Increment expected sequence number
+                expected_seq_num += 1;
+            } 
 
             // Construct an ACK packet based on if the packet received is LAST or not
             build_packet(&ack_pkt, 0, expected_seq_num - 1, buffer.last, 1, 0, payload);
