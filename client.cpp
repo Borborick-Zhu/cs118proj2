@@ -220,6 +220,8 @@ int main(int argc, char *argv[])
                     close(send_sockfd);
                     return -1;
                 }
+                
+                break;
             }
         }
         printf("\n");
