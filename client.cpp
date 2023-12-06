@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    float window_size = 1;
+    float cwnd = 1;
     int desired_ack = 0; // next packet thats we want to be acked (its seq num)
     int latest_sent = -1; // latest sent packet (seq num)
     int dup = 0; // number of duplicates. 
@@ -82,7 +82,6 @@ int main(int argc, char *argv[])
     //construct entire packets array by dividing up the original content
 
     struct packet packet_buffer[4196];
-    int seq_num = 0;
     int total_packets = 0;
 
     // Fast retransmit flag
@@ -98,7 +97,7 @@ int main(int argc, char *argv[])
     while (1) { // break out of the while loop when the last ack comes back.
 
         //send all packets in the window if not already sent. 
-        for (int i = desired_ack; i < desired_ack + window_size; i++) {
+        for (int i = desired_ack; i < desired_ack + cwnd; i++) {
             if (i > latest_sent) {
                 latest_sent = i;
                 sendto(send_sockfd, &packet_buffer[i], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
@@ -124,10 +123,6 @@ int main(int argc, char *argv[])
 
         //logic to wait for the acks now. 
         while (1) {
-            //depending on the cc (congestion control state), we will adjust the window + dupe accordingly. 
-            // if (!cc && window_size >= ssthresh)
-            //     cc = 1;
-
             //if we receive acks. 
             if (recvfrom(listen_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&server_addr_from, &addr_size) > 0) {
 
@@ -143,8 +138,8 @@ int main(int argc, char *argv[])
                 if (ack_pkt.acknum >= desired_ack) {
                     printRecv(&ack_pkt);
                     //increase window size by 1/n
-                    window_size += (1.0 / (int) window_size);
-                    printf("window_size is now: %f\n", window_size);
+                    cwnd += (1.0 / (int) cwnd);
+                    printf("cwnd is now: %f\n", cwnd);
 
                     //change the value of the next desired acked. 
                     desired_ack = ack_pkt.acknum + 1;
@@ -155,7 +150,7 @@ int main(int argc, char *argv[])
                     // Check if this was a fast retransmit case
                     if (fr) {
                         // Reduce window size by half
-                        window_size = std::floor(((window_size / 2) - dup));
+                        cwnd = std::floor(((cwnd / 2) - dup));
 
                         // Reset the fast retransmit flag
                         fr = 0;
@@ -173,7 +168,7 @@ int main(int argc, char *argv[])
                     // If dup pkts received is 3
                     if (dup == 3) {
                         // Alter window size
-                        window_size = (window_size / 2) + 3;
+                        cwnd = (cwnd / 2) + 3;
 
                         // Set fast retransmit flag
                         fr = 1;
@@ -193,14 +188,14 @@ int main(int argc, char *argv[])
                         
                     } else if (dup > 3) { // If the counter exceeds 3
                         // Increment window by 1
-                        window_size += 1;
+                        cwnd += 1;
                     }
 
                 }
 
             } else { // we timeout. 
                 // Reset window size
-                window_size = 1;
+                cwnd = 1;
 
                 printSend(&packet_buffer[desired_ack - 1], 1);
                 // Retransmit the beginning of the window
