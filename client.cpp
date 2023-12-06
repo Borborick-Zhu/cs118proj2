@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
     float window_size = 1;
     int desired_ack = 0; // next packet thats we want to be acked (its seq num)
     int latest_sent = -1; // latest sent packet (seq num)
-    int dup = 1; // number of duplicates. 
+    int dup = 0; // number of duplicates. 
 
     //window should go from last_acked to last_acked-1 (inclusive)
 
@@ -84,6 +84,9 @@ int main(int argc, char *argv[])
     struct packet packet_buffer[4196];
     int seq_num = 0;
     int total_packets = 0;
+
+    // Fast retransmit flag
+    char fr = 0;
 
     //read all the files in to the packet_buffer
     while (!feof(fp) && total_packets < 4196) {
@@ -141,13 +144,56 @@ int main(int argc, char *argv[])
                     //increase window size by 1/n
                     window_size += (1.0 / (int) window_size);
                     printf("window_size is now: %f\n", window_size);
+
                     //change the value of the next desired acked. 
                     desired_ack = ack_pkt.acknum + 1;
+
+                    // Reset dup pkt counter
+                    dup = 0;
+
+                    // Check if this was a fast retransmit case
+                    if (fr) {
+                        // Reduce window size by half
+                        window_size = std::floor(window_size / 2);
+
+                        // Reset the fast retransmit flag
+                        fr = 0;
+                    }
+
                     break;
                 } else if (ack_pkt.acknum == desired_ack - 1) { // if duplicate ack is received. 
-                    //do nothing for now. 
+                    // Fast retransmit case
                     printf("Received a dupe packet: ");
                     printRecv(&ack_pkt);
+
+                    // Increment dup packet counter
+                    dup += 1;
+
+                    // If dup pkts received is 3
+                    if (dup == 3) {
+                        // Alter window size
+                        window_size = (window_size / 2) + 3;
+
+                        // Set fast retransmit flag
+                        fr = 1;
+
+                        // Retransmit the requested packet
+                        sendto(send_sockfd, &packet_buffer[desired_ack - 1], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
+                        printSend(&packet_buffer[desired_ack - 1], 1);
+
+                        // Reset the timeout
+                        if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof tv) < 0) {
+                            perror("Error setting socket timeout function.\n");
+                            close(listen_sockfd);
+                            close(send_sockfd);
+                            return 1;
+                         }   
+                        
+                    } else if (dup > 3) { // If the counter exceeds 3
+                        // Increment window by 1
+                        window_size += 1;
+                    }
+
                 }
 
             } else { // we timeout. 
