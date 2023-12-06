@@ -151,13 +151,13 @@ int main(int argc, char *argv[])
                 }
 
             } else { // we timeout. 
-
-                printf("Timed out\n");
                 // Reset window size
                 window_size = 1;
 
+                printSend(&packet_buffer[desired_ack - 1], 1);
                 // Retransmit the beginning of the window
-                sendto(send_sockfd, &packet_buffer[desired_ack], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
+                sendto(send_sockfd, &packet_buffer[desired_ack - 1], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
+                latest_sent = desired_ack;
 
                 // Reset the timeout
                 if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof tv) < 0) {
