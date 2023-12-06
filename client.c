@@ -158,14 +158,8 @@ int main(int argc, char *argv[]) {
             } else { // ACK has been received
                 if (ack_pkt.acknum == total_packets_received) {
                     // Fast retransmission packet came back
-                    if (dupe_ack_counter >= 3) {
-                        total_packets_received += (dupe_ack_counter + 1);
-                        packets_received = 1;
-                        window_size -= dupe_ack_counter;
-                    } else {
-                        total_packets_received += 1;
-                        packets_received += 1;
-                    }
+                    total_packets_received += 1;
+                    packets_received += 1;
                     dupe_ack_counter = 0;
                 } else if (ack_pkt.acknum > total_packets_received) {
                     total_packets_received = ack_pkt.acknum;
@@ -178,11 +172,12 @@ int main(int argc, char *argv[]) {
                     if (dupe_ack_counter == 3) {
                         seq_num = ack_pkt.acknum + 1;
                         window_size = (window_size / 2);
-                        packets_received = 3;
-                    } else if (dupe_ack_counter > 3) {
-                        window_size += 1;
-                        packets_received += 1;
-                    }
+                        packets_received = 0;
+                    } 
+                    // else if (dupe_ack_counter > 3) {
+                    //     window_size += 1;
+                    //     packets_received += 1;
+                    // }
                 }
                 // Otherwise, ACK number does not match the sent/expected sequence number so discard
             }
