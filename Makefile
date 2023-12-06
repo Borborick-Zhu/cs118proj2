@@ -5,12 +5,12 @@ all: clean build
 
 default: build
 
-build: server.cpp client.cpp
-	gcc -Wall -Wextra -o server server.cpp
-	gcc -Wall -Wextra -o client client.cpp
+build: server.c client.c
+	gcc -Wall -Wextra -o server server.c
+	gcc -Wall -Wextra -o client client.c
 
 clean:
 	rm -f server client output.txt project2.zip
 
 zip: 
-	zip project2.zip server.c client.c utils.h Makefile README
+	zip project2.zip server.c client.c utils.h Makefile README.md report.txt

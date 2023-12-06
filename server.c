@@ -12,12 +12,9 @@ int main() {
     struct packet buffer;
     socklen_t addr_size = sizeof(client_addr_from);
     int expected_seq_num = 0;
-    int recv_len;
+    //int recv_len;
     struct packet ack_pkt;
     const char* payload = "";
-    char last = 0;
-    // struct packet dummy;
-    // build_packet(&dummy, -1, -1, 1, 1, -1, "",-1);
 
     // Create a UDP socket for sending
     send_sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -65,24 +62,16 @@ int main() {
     size_t bytes_received;
 
     // Creates a buffer of size 1
-    struct packet *cache;
-    int window_size = 1;
-    cache = (struct packet *) malloc(window_size * sizeof(struct packet));
-    memset(&(cache[0]), -1, sizeof(struct packet));
+    struct packet cache[4096];
 
     while(1) {
         // Receiving packet from client
         bytes_received = recvfrom(listen_sockfd, &buffer, sizeof(buffer), 0, (struct sockaddr *)&client_addr_from, &addr_size);
-        if (bytes_received == -1) {
+        if (bytes_received == (unsigned long)-1) {
             perror("Error retrieving packet");
             close(listen_sockfd);
             close(send_sockfd);
             return 1;
-        }
-
-        // Check if window size on client-side has changed
-        if(window_size != buffer.window_size) {
-            increaseWindowSize(&cache, &window_size, buffer.window_size);
         }
 
         // If the received packet is in-order
@@ -90,14 +79,11 @@ int main() {
             printf("Just received packet with sequence number: %d\n", expected_seq_num);
 
             // Place in-order packet into buffer at position 0
-            memcpy(&(cache[buffer.seqnum - expected_seq_num]), &buffer, sizeof(struct packet));
+            //memcpy(&(cache[buffer.seqnum - expected_seq_num]), &buffer, sizeof(struct packet));
+            cache[expected_seq_num] = buffer;
 
             // Construct an ACK packet based on if the packet received is LAST or not
-            if (buffer.last == 1) {
-                build_packet(&ack_pkt, 0, expected_seq_num, 1, 1, 0, payload, -1);
-            } else {
-                build_packet(&ack_pkt, 0, expected_seq_num, 0, 1, 0, payload, -1);
-            }
+            build_packet(&ack_pkt, 0, expected_seq_num, buffer.last, 1, 0, payload, -1);
 
             // Send back an ACK
             if (sendto(send_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&client_addr_to, addr_size) == -1){
@@ -111,10 +97,10 @@ int main() {
         } else { // else out of order packet arrived (buffer the out of order packet)
             
             // Place out-of-order packet into buffer at correct position
-            memcpy(&(cache[buffer.seqnum - expected_seq_num]), &buffer, sizeof(struct packet));
+            cache[buffer.seqnum] = buffer;
 
             printf("Received pkt seqnum %d but expected %d\n", buffer.seqnum, expected_seq_num);
-            printf("Current Client window size: %d\n", buffer.window_size);
+            //printf("Current Client window size: %d\n", buffer.window_size);
 
             // Construct a "retransmission" ACK packet using the previous seq number
             build_packet(&ack_pkt, 0, expected_seq_num - 1, 0, 1, 0, payload, -1);
@@ -132,30 +118,23 @@ int main() {
 
         while (1) {
             
-            if (strcmp(cache[0].packet_check, "packet") == 0) {
+            if (strcmp(cache[expected_seq_num].packet_check, "packet") == 0) {
                 
                 // Write front of cache 
                 //printf("payload: %s\n", cache[0].payload);
-                if (cache[0].last == 1) {
-                    fwrite(cache[0].payload, 1, strlen(cache[0].payload), fp);
+                if (cache[expected_seq_num].last == 1) {
+                    fwrite(cache[expected_seq_num].payload, 1, strlen(cache[expected_seq_num].payload), fp);
                     fclose(fp);
                     close(listen_sockfd);
                     close(send_sockfd);
                     return 0;
                 } else {
-                    fwrite(cache[0].payload, 1, PAYLOAD_SIZE, fp);
+                    fwrite(cache[expected_seq_num].payload, 1, PAYLOAD_SIZE, fp);
                 }
                 
                 //printf("Written packet with seqnum %d\n", cache[0].seqnum);
                 // Increment expected sequence number
                 expected_seq_num += 1;
-                
-                // Shift contents to left
-                for (int i = 0; i < window_size - 1; i++){
-                    memcpy(&(cache[i]), &(cache[i + 1]), sizeof(struct packet));
-                    //strcpy(cache[i+1].packet_check, "nacket");
-                }
-                strcpy(cache[window_size - 1].packet_check, "nacket");
             } else {
                 //printf("not a packet, string is: %s\n", cache[0].packet_check);
                 break;

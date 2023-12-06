@@ -84,14 +84,6 @@ int main(int argc, char *argv[]) {
     int window_size = 1;
 
     // Initializing timeout countdown that times out "recvfrom()" function calls after a specified amt of time
-    tv.tv_sec = TIMEOUT;
-    tv.tv_usec = 0;
-    if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-        perror("Error setting timeout");
-        close(listen_sockfd);
-        close(send_sockfd);
-        return 1;
-    }
 
     size_t bytes_read;
     unsigned short total_packets_received = 0;
@@ -139,6 +131,15 @@ int main(int argc, char *argv[]) {
                 }
             }
 
+            tv.tv_sec = TIMEOUT;
+            tv.tv_usec = 0;
+            if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+                perror("Error setting timeout");
+                close(listen_sockfd);
+                close(send_sockfd);
+                return 1;
+            }
+
             // Waiting for the retrieval of the corresponding ack
             if (recvfrom(listen_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&server_addr_from, &ack_addr_size) == -1) {
                 // Timeout happens so set flag to resend
@@ -176,7 +177,7 @@ int main(int argc, char *argv[]) {
                     // This is the fast retransmit case
                     if (dupe_ack_counter == 3) {
                         seq_num = ack_pkt.acknum + 1;
-                        window_size = (window_size / 2) + 3;
+                        window_size = (window_size / 2);
                         packets_received = 3;
                     } else if (dupe_ack_counter > 3) {
                         window_size += 1;
@@ -253,6 +254,13 @@ int main(int argc, char *argv[]) {
                 return 0;
             }
             seq_num += 1;
+        }
+
+        if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+            perror("Error setting timeout");
+            close(listen_sockfd);
+            close(send_sockfd);
+            return 1;
         }
 
         if (recvfrom(listen_sockfd, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&server_addr_from, &ack_addr_size) == -1) {
