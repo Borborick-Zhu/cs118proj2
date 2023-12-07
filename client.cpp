@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
                         fr = 1;
 
                         // Retransmit the requested packet
-                        sendto(send_sockfd, &packet_buffer[desired_ack], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
+                        sendto(send_sockfd, &packet_buffer[desired_ack - 1], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
                         printSend(&packet_buffer[desired_ack - 1], 1);
 
                         // Set timeout after sending
@@ -206,10 +206,11 @@ int main(int argc, char *argv[])
                 // Reset window size
                 cwnd = 1;
                 
-                printf("Timeout: ");
-                printSend(&packet_buffer[desired_ack - 1], 1);
+                int resend = desired_ack - 1 < 0 ? 0 : desired_ack - 1;
+                printf("Timed out and indexing into buffer at %d: ", resend);
+                printSend(&packet_buffer[resend], 1);
                 // Retransmit the beginning of the window
-                sendto(send_sockfd, &packet_buffer[desired_ack - 1], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
+                sendto(send_sockfd, &packet_buffer[resend], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
 
                 // Reset the timeout
                 if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
