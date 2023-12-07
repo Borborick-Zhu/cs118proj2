@@ -93,6 +93,11 @@ int main(int argc, char *argv[])
         total_packets += 1;
     }
 
+    // Timeout values
+    struct timeval tv; 
+    tv.tv_sec = 0; 
+    tv.tv_usec = 210000; 
+
     while (1) { // break out of the while loop when the last ack comes back.
 
         //send all packets in the window if not already sent. 
@@ -108,10 +113,7 @@ int main(int argc, char *argv[])
             }
         }
 
-        //set timeout. 
-        struct timeval tv; 
-        tv.tv_sec = 0; 
-        tv.tv_usec = 300000; 
+        // Set timeout after sending
         if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv) < 0) {
             perror("Setting timeout error\n");
             fclose(fp);
@@ -184,36 +186,33 @@ int main(int argc, char *argv[])
                         sendto(send_sockfd, &packet_buffer[desired_ack - 1], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
                         printSend(&packet_buffer[desired_ack - 1], 1);
 
-                        // Reset the timeout
+                        // Set timeout after sending
                         if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv) < 0) {
                             perror("Setting timeout error\n");
                             fclose(fp);
                             close(listen_sockfd);
                             close(send_sockfd);
                             return -1;
-                         }   
-                        
+                        }
                     } else if (dup > 3) { // If the counter exceeds 3
                         // Increment window by 1
                         cwnd += 1;
-                    }
-
-                }
-
+                    }   
+                } // Otherwise we get an ack less than what we're expecting
             } else { // we timeout. 
-                // Reset window size
-                cwnd = 1;
-
                 // Change ssthresh to be max(2, (cwnd / 2))
                 ssthresh = 2 < std::floor(cwnd / 2) ? std::floor(cwnd / 2) : 2;
 
+                // Reset window size
+                cwnd = 1;
+                
+                printf("Timeout: ");
                 printSend(&packet_buffer[desired_ack - 1], 1);
                 // Retransmit the beginning of the window
                 sendto(send_sockfd, &packet_buffer[desired_ack - 1], sizeof(struct packet), 0, (struct sockaddr *)&server_addr_to, sizeof(server_addr_to));
-                latest_sent = desired_ack;
 
                 // Reset the timeout
-                if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv) < 0) {
+                if (setsockopt(listen_sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
                     perror("Setting timeout error\n");
                     fclose(fp);
                     close(listen_sockfd);
